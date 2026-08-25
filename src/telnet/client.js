@@ -14,7 +14,7 @@ export class OnyxClient extends EventEmitter {
 	}
 
 	createClient() {
-		this.#socket = new TelnetHelper(this.#config.host, this.#config.port, { reconnect: true, reconnect_interval: 2000 })
+		this.#socket = new TelnetHelper(this.#config.host, this.#config.port, { reconnect: true, reconnect_interval: 1000 })
 
 		this.#socket.on('status_change', (status, message) => {
 			this.emit('log', { type: 'info', msg: 'New status from telnet: ' + status + ' ' + message })
@@ -32,7 +32,6 @@ export class OnyxClient extends EventEmitter {
 		this.#socket.on('error', (err) => {
 			this.emit('log', { type: 'error', msg: 'Error with connection to console: ' + err.message })
 			this.emit('status', { status: InstanceStatus.ConnectionFailure })
-			// TODO reconnection logic
 		})
 
 		this.#socket.on('close', (hadError) => {
@@ -53,6 +52,10 @@ export class OnyxClient extends EventEmitter {
 	}
 
 	destroyClient() {
+		if (this.#pollTimer) {
+			clearInterval(this.#pollTimer)
+			this.#pollTimer = null
+		}
 		if (this.#socket) {
 			this.#socket.destroy()
 			this.#socket = undefined
