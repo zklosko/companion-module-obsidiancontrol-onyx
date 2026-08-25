@@ -1,81 +1,104 @@
 import { InstanceStatus, TelnetHelper } from '@companion-module/base'
+import { EventEmitter } from 'node:events';
 
-// Function to send Telnet command to Onyx console
-export async function sendCommand(cmd, self) {
-	try {
-		self.socket.send(cmd + '\r\n')
-		self.log('info', `Command sent: ${cmd}`)
-	} catch (err) {
-		self.log('error', `Error when sending command ${cmd}: ${err}`)
+export class OnyxClient extends EventEmitter {
+	activeCuelists
+	#config
+	#socket
+	#pollTimer
+
+	constructor(config) {
+		super()
+		this.#config = config
+		this.activeCuelists = []
 	}
-}
 
-function getActiveCuelists(self) {
-	self.activeCuelists = []
-	sendCommand('QLActive', self)
-}
+	createClient() {
+		this.#socket = new TelnetHelper(this.#config.host, this.#config.port, { reconnect: true, reconnect_interval: 2000 })
 
-// Function to parse incoming data
-function parseData(self, buffer) {
-	const data = buffer.toString('utf8')
-	self.log('debug', `Received data: ${data}`)
-	self.buffer += data
+		this.#socket.on('status_change', (status, message) => {
+			this.emit('log', { type: 'info', msg: 'New status from telnet: ' + status + ' ' + message })
+			this.emit('status', { status: status, msg: message })
+		})
 
-	const lines = self.buffer.split(/\r?\n/)
-	for (const line of lines) {
-		if (line === '.') {
-			self.buffer = ''
-		} else if (!isNaN(parseInt(line)) && parseInt(line) != 200) {
-			self.activeCuelists.push(parseInt(line))
-			self.setVariableValues({
-				activeCuelists: self.activeCuelists
-			})
-			self.checkFeedbacks('ActiveCuelist') // Update feedbacks after active cuelist data received
-		}
-	}
-}
+		this.#socket.on('connect', () => {
+			this.emit('log', { type: 'info', msg: 'Connected to Onyx console' })
+			this.emit('status', { status: InstanceStatus.Ok })
 
-// Create new TCP/Telnet socket and attempt to connect
-export function createTelnetClient(self) {
-	self.socket = new TelnetHelper(self.config.host, self.config.port, { reconnect: true, reconnect_interval: 2000 })
+			// Start polling for active cuelists, only if using ONYX Manager
+			if (this.#config.usingManager) this.#startPolling()
+		})
 
-	self.socket.on('status_change', (status, message) => {
-		self.log('debug', 'New status from telnet: ' + status + ' ' + message)
-		self.updateStatus(status, message)
-	})
+		this.#socket.on('error', (err) => {
+			this.emit('log', { type: 'error', msg: 'Error with connection to console: ' + err.message })
+			this.emit('status', { status: InstanceStatus.ConnectionFailure })
+			// TODO reconnection logic
+		})
 
-	self.socket.on('connect', () => {
-		self.log('debug', 'Connected to Onyx console')
-		self.updateStatus(InstanceStatus.Ok)
-
-		// Start polling for active cuelists, only if using ONYX Manager
-		if (self.config.usingManager) {
-			if (self.pollTimer) {
-				clearInterval(self.pollTimer)
+		this.#socket.on('close', (hadError) => {
+			if (hadError) {
+				this.emit('log', { type: 'error', msg: 'Socket closed due to an error.' })
+			} else {
+				this.emit('log', { type: 'error', msg: 'Socket closed.'})
 			}
+		})
 
-			self.log('debug', `Polling interval: ${self.config.polling_interval}`)
-			self.pollTimer = setInterval(() => {
-				getActiveCuelists(self)
-			}, self.config.polling_interval)
+		this.#socket.on('data', (buffer) => {
+			this.#parseData(buffer)
+		})
+	}
+
+	updateConfig(config) {
+		this.#config = config
+	}
+
+	destroyClient() {
+		if (this.#socket) {
+			this.#socket.destroy()
+			this.#socket = undefined
 		}
-	})
+	}
 
-	self.socket.on('error', (err) => {
-		self.log('error', 'Error with connection to console: ' + err.message)
-		self.updateStatus(InstanceStatus.ConnectionFailure)
-		// reconnection logic
-	})
-
-	self.socket.on('close', (hadError) => {
-		if (hadError) {
-			self.log('error', 'Socket closed due to an error.')
-		} else {
-			self.log('error', 'Socket closed.')
+	// Function to send Telnet command to Onyx console
+	async sendCommand(cmd) {
+		try {
+			await this.#socket.send(cmd + '\r\n')
+			this.emit('log', { type: 'info', msg: `Command sent: ${cmd}` })
+		} catch (e) {
+			this.emit('log', { type: 'error', msg: `Error when sending command ${cmd}: ${err}` })
 		}
-	})
+	}
 
-	self.socket.on('data', (buffer) => {
-		parseData(self, buffer)
-	})
+	#startPolling() {
+		if (this.#pollTimer) {
+			clearInterval(this.#pollTimer)
+		}
+
+		this.emit('log', {type: 'debug', msg: `Polling interval: ${this.#config.polling_interval}` })
+		this.#pollTimer = setInterval(() => {
+			this.#getActiveCuelists()
+		}, this.#config.polling_interval)
+	}
+
+	#getActiveCuelists() {
+		this.activeCuelists = []
+		sendCommand('QLActive')
+	}
+
+	// Function to parse incoming data
+	#parseData(buffer) {
+		const data = buffer.toString('utf8')
+		this.emit('log', { type: 'debug', msg: `Received data: ${data}` })
+
+		const lines = data.split(/\r?\n/) // remove eom character
+		for (const line of lines) {
+			const num = parseInt(line)
+			if (!isNaN(num) && num != 200) {
+				self.activeCuelists.push(num)
+
+				this.emit('cuelists_updated', self.activeCuelists)
+				this.emit('check_feedbacks', 'ActiveCuelist') // Update feedbacks after active cuelist data received
+			}
+		}
+	}
 }

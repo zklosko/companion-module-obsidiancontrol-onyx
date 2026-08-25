@@ -1,7 +1,7 @@
 import { InstanceBase, InstanceStatus, runEntrypoint } from '@companion-module/base'
 import { configFields } from './src/config.js'
 import { upgradeScripts } from './src/upgrades.js'
-import { createTelnetClient } from './src/telnet/client.js'
+import { OnyxClient } from './src/telnet/client.js'
 import { UpdateActions } from './src/actions.js'
 import { UpdateVariableDefinitions } from './src/variables.js'
 import { UpdatePresetDefinitions } from './src/presets.js'
@@ -10,7 +10,6 @@ import { UpdateFeedbacks } from './src/feedbacks.js'
 class ModuleInstance extends InstanceBase {
 	constructor(internal) {
 		super(internal)
-		this.activeCuelists = []
 	}
 
 	async init(config) {
@@ -19,21 +18,43 @@ class ModuleInstance extends InstanceBase {
 
 		await this.configUpdated(config)
 
+		this.OnyxClient = new OnyxClient(config)
+
+		this.OnyxClient.on('log', (logInfo) => {
+			this.log(logInfo.type, logInfo.msg)
+		})
+
+		this.OnyxClient.on('status', (statusInfo) => {
+			const message = statusInfo.msg ?? ''
+			this.updateStatus(statusInfo.status, message)
+		})
+
+		this.OnyxClient.on('cuelists_updated', (activeCuelists) => {
+			this.setVariableValues({
+				activeCuelists: activeCuelists
+			})
+		})
+
+		this.OnyxClient.on('check_feedbacks', (feedback) => {
+			this.checkFeedbacks(feedback)
+		})
+
 		this.updateStatus(InstanceStatus.Ok)
 
 		this.updateActions() // export actions
 		this.updateFeedbacks() // export feedbacks
 		this.updateVariableDefinitions() // export variable definitions
 		this.updatePresetDefinitions()
+
+		// Connect on module launch
+		if (this.config.host) {
+			this.OnyxClient.createClient()
+		}
 	}
 
 	// When module gets deleted or deactivated
 	async destroy() {
-		if (this.socket) {
-			this.socket.destroy()
-			delete this.socket
-		}
-
+		this.OnyxClient.destroyClient()
 		this.log('debug', 'Onyx module instance destroyed.')
 	}
 
@@ -50,9 +71,11 @@ class ModuleInstance extends InstanceBase {
 			usingManager: this.config.usingManager,
 		})
 
-		// Create Telnet client
+		// Update config and connect
 		if (this.config.host) {
-			createTelnetClient(this)
+			this.OnyxClient.destroyClient()
+			this.OnyxClient.updateConfig(this.config)
+			this.OnyxClient.createClient()
 		}
 	}
 
