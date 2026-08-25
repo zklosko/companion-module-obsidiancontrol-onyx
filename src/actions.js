@@ -1,5 +1,3 @@
-import { sendCommand } from './telnet/client.js'
-
 export function UpdateActions(self) {
 	let actions = {}
 
@@ -16,7 +14,7 @@ export function UpdateActions(self) {
 			},
 		],
 		callback: async (event) => {
-			sendCommand(`GQL ${event.options.cuelist}`, self)
+			self.OnyxClient.sendCommand(`GQL ${event.options.cuelist}`, self)
 		},
 	}
 
@@ -48,7 +46,7 @@ export function UpdateActions(self) {
 			},
 		],
 		callback: async (event) => {
-			sendCommand(`GTQ ${event.options.cuelist},${event.options.cue}`, self)
+			self.OnyxClient.sendCommand(`GTQ ${event.options.cuelist},${event.options.cue}`, self)
 		},
 	}
 
@@ -64,7 +62,7 @@ export function UpdateActions(self) {
 			},
 		],
 		callback: async (event) => {
-			sendCommand(`PQL ${event.options.cuelist}`, self)
+			self.OnyxClient.sendCommand(`PQL ${event.options.cuelist}`, self)
 		},
 	}
 
@@ -80,7 +78,7 @@ export function UpdateActions(self) {
 			},
 		],
 		callback: async (event) => {
-			sendCommand(`RQL ${event.options.cuelist}`, self)
+			self.OnyxClient.sendCommand(`RQL ${event.options.cuelist}`, self)
 		},
 	}
 
@@ -104,7 +102,7 @@ export function UpdateActions(self) {
 			},
 		],
 		callback: async (event) => {
-			sendCommand(`SQL ${event.options.cuelist},${event.options.level}`, self)
+			self.OnyxClient.sendCommand(`SQL ${event.options.cuelist},${event.options.level}`, self)
 		},
 	}
 
@@ -130,7 +128,7 @@ export function UpdateActions(self) {
 			},
 		],
 		callback: async (event) => {
-			sendCommand(`GSC ${event.options.schedule}`, self)
+			self.OnyxClient.sendCommand(`GSC ${event.options.schedule}`, self)
 		},
 	}
 
@@ -138,7 +136,7 @@ export function UpdateActions(self) {
 	actions.clearProgrammer = {
 		name: 'Clear Programmer',
 		callback: async () => {
-			sendCommand('CLRCLR', self)
+			self.OnyxClient.sendCommand('CLRCLR', self)
 		},
 	}
 
@@ -146,7 +144,7 @@ export function UpdateActions(self) {
 	actions.releaseOverrides = {
 		name: 'Release All Overrides',
 		callback: async () => {
-			sendCommand('RAO', self)
+			self.OnyxClient.sendCommand('RAO', self)
 		},
 	}
 
@@ -154,7 +152,7 @@ export function UpdateActions(self) {
 		name: 'Release All Cuelists',
 		options: [],
 		callback: async (event) => {
-			sendCommand('RAQL', self)
+			self.OnyxClient.sendCommand('RAQL', self)
 		},
 	}
 
@@ -162,14 +160,14 @@ export function UpdateActions(self) {
 		name: 'Release All Cuelists Dimmer First',
 		options: [],
 		callback: async (event) => {
-			sendCommand('RAQLDF', self)
+			self.OnyxClient.sendCommand('RAQLDF', self)
 		},
 	}
 
 	actions.releaseAll = {
 		name: 'Release All Cuelists and Overrides',
 		callback: async () => {
-			sendCommand('RAQLO', self)
+			self.OnyxClient.sendCommand('RAQLO', self)
 		},
 	}
 
