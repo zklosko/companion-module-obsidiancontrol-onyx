@@ -97,9 +97,9 @@ export class OnyxClient extends EventEmitter {
 		for (const line of lines) {
 			const num = parseInt(line)
 			if (!isNaN(num) && num != 200) {
-				self.activeCuelists.push(num)
+				this.activeCuelists.push(num)
 
-				this.emit('cuelists_updated', self.activeCuelists)
+				this.emit('cuelists_updated', this.activeCuelists)
 				this.emit('check_feedbacks', 'ActiveCuelist') // Update feedbacks after active cuelist data received
 			}
 		}
